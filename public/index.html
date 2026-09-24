@@ -1,0 +1,429 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="An animated pixel-art walkthrough of how a large language model writes: tokenize, embed, attention, MLP, softmax, sample, then feed the token back in and go again.">
+<meta name="theme-color" content="#1a1c2c">
+<meta property="og:title" content="The Next-Token Machine">
+<meta property="og:description" content="How an LLM writes, one token at a time, drawn in pixels.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://tokenloop.alirezaafshan.com/">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<title>Next-Token Machine</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Pixelify+Sans:wght@400;600&family=VT323&display=swap">
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; }
+  :root {
+    color-scheme: dark;
+    --bg: #1a1c2c;
+    --deep: #0f101c;
+    --panel: #212438;
+    --line: #333c57;
+    --slate: #566c86;
+    --mist: #94b0c2;
+    --ink: #f4f4f4;
+    --orange: #ef7d57;
+    --yellow: #ffcd75;
+    --lime: #a7f070;
+    --cyan: #73eff7;
+    --sky: #41a6f6;
+    --blue: #3b5dc9;
+    --red: #b13e53;
+    --plum: #5d275d;
+    --display: 'Press Start 2P', ui-monospace, 'Courier New', monospace;
+    --body: 'Pixelify Sans', ui-rounded, system-ui, sans-serif;
+    --data: 'VT323', ui-monospace, 'Courier New', monospace;
+  }
+  html { background: var(--bg); }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--body);
+    font-size: 17px;
+    line-height: 1.5;
+  }
+  .wrap {
+    max-width: 1320px;
+    margin: 0 auto;
+    padding-inline: clamp(16px, 3vw, 36px);
+    padding-block: 28px 56px;
+  }
+
+  /* header */
+  .eyebrow {
+    font-family: var(--display);
+    font-size: 10px;
+    letter-spacing: .08em;
+    color: var(--cyan);
+    margin: 0 0 14px;
+  }
+  h1 {
+    font-family: var(--display);
+    font-weight: 400;
+    font-size: clamp(20px, 3.4vw, 34px);
+    line-height: 1.35;
+    margin: 0 0 14px;
+    text-shadow: 4px 4px 0 var(--plum);
+    text-wrap: balance;
+  }
+  .lede {
+    max-width: 62ch;
+    margin: 0 0 26px;
+    color: var(--mist);
+    font-size: 18px;
+  }
+
+  /* layout */
+  .layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 24px;
+    align-items: start;
+  }
+  @media (min-width: 1040px) {
+    .layout { grid-template-columns: minmax(0, 1fr) 330px; }
+  }
+  .machine { display: grid; gap: 14px; min-width: 0; }
+
+  .screen {
+    position: relative;
+    border: 4px solid var(--line);
+    box-shadow: 8px 8px 0 0 var(--deep);
+    background: var(--bg);
+  }
+  .screen canvas {
+    display: block;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 448 / 256;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    background: var(--bg);
+  }
+  .screen::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: repeating-linear-gradient(to bottom, transparent 0 2px, rgba(0, 0, 0, .13) 2px 3px);
+  }
+
+  .transcript {
+    font-family: var(--data);
+    font-size: 26px;
+    line-height: 1.15;
+    background: var(--panel);
+    border: 2px solid var(--line);
+    padding: 10px 14px 12px;
+    min-height: 3.2em;
+    overflow-wrap: anywhere;
+  }
+  .transcript .lbl {
+    display: block;
+    font-family: var(--display);
+    font-size: 8px;
+    letter-spacing: .08em;
+    color: var(--mist);
+    margin-bottom: 8px;
+  }
+  .tok-p { color: var(--orange); }
+  .tok-g { color: var(--cyan); }
+  .tok-e { color: var(--red); }
+  .caret {
+    display: inline-block;
+    width: .5em;
+    height: .85em;
+    background: var(--yellow);
+    vertical-align: -0.08em;
+    margin-left: 3px;
+    animation: blink 1s steps(1) infinite;
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 22px;
+    font-size: 15px;
+    color: var(--mist);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .legend li { display: flex; align-items: center; gap: 8px; }
+  .chip {
+    display: inline-block;
+    width: 22px;
+    height: 12px;
+    box-shadow: inset 0 0 0 2px var(--deep);
+  }
+  .ramp { display: inline-flex; }
+  .ramp i { display: block; width: 8px; height: 12px; }
+
+  /* controls */
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px 26px;
+    align-items: end;
+    background: var(--panel);
+    border: 2px solid var(--line);
+    padding: 14px;
+  }
+  .group { display: flex; flex-direction: column; gap: 8px; }
+  .group .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .ctl-label {
+    font-family: var(--display);
+    font-size: 8px;
+    letter-spacing: .08em;
+    color: var(--mist);
+  }
+  .btn {
+    font-family: var(--display);
+    font-size: 11px;
+    line-height: 1;
+    color: var(--bg);
+    background: var(--yellow);
+    border: 0;
+    padding: 11px 14px 10px;
+    cursor: pointer;
+    box-shadow: inset -3px -3px 0 rgba(0, 0, 0, .3), inset 3px 3px 0 rgba(255, 255, 255, .35);
+    min-height: 36px;
+  }
+  .btn:hover { filter: brightness(1.08); }
+  .btn:active { box-shadow: inset 3px 3px 0 rgba(0, 0, 0, .3); transform: translateY(1px); }
+  .btn.alt { background: var(--line); color: var(--ink); box-shadow: inset -3px -3px 0 rgba(0, 0, 0, .3), inset 3px 3px 0 rgba(255, 255, 255, .12); }
+  .btn.alt[aria-pressed="true"] { background: var(--cyan); color: var(--bg); }
+  .btn:focus-visible, select:focus-visible, input:focus-visible {
+    outline: 2px dashed var(--cyan);
+    outline-offset: 3px;
+  }
+  select {
+    font-family: var(--body);
+    font-size: 16px;
+    color: var(--ink);
+    background: var(--bg);
+    border: 2px solid var(--line);
+    padding: 6px 8px;
+    min-height: 36px;
+    max-width: 100%;
+  }
+  input[type="range"] { accent-color: var(--yellow); width: 150px; max-width: 100%; }
+  output {
+    font-family: var(--data);
+    font-size: 24px;
+    color: var(--yellow);
+    min-width: 2.2em;
+    font-variant-numeric: tabular-nums;
+  }
+  .hint { font-size: 14px; color: var(--slate); margin: 0; }
+
+  /* guide */
+  .guide { display: grid; gap: 16px; min-width: 0; }
+  .guide h2, .notes h2 {
+    font-family: var(--display);
+    font-weight: 400;
+    font-size: 12px;
+    letter-spacing: .06em;
+    margin: 0;
+    line-height: 1.5;
+  }
+  .stages {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 4px;
+  }
+  .stages li {
+    display: grid;
+    grid-template-columns: 14px 1fr;
+    gap: 12px;
+    align-items: center;
+    padding: 8px 10px;
+    border: 2px solid transparent;
+    color: var(--slate);
+    font-family: var(--display);
+    font-size: 10px;
+    line-height: 1.5;
+  }
+  .stages li .sw { width: 12px; height: 12px; background: var(--c); opacity: .45; }
+  .stages li.on { color: var(--ink); background: var(--panel); border-color: var(--c); }
+  .stages li.on .sw { opacity: 1; }
+  .stages li.done { color: var(--mist); }
+  .stages li.done .sw { opacity: .8; }
+
+  .explain {
+    background: var(--panel);
+    border: 2px solid var(--line);
+    padding: 16px;
+    display: grid;
+    gap: 10px;
+  }
+  .explain h2 { color: var(--c, var(--yellow)); }
+  .explain p { margin: 0; max-width: 60ch; }
+  .explain .live {
+    font-family: var(--data);
+    font-size: 22px;
+    line-height: 1.2;
+    color: var(--yellow);
+    min-height: 1.2em;
+  }
+
+  /* notes */
+  .notes {
+    margin-top: 44px;
+    display: grid;
+    gap: 16px;
+    max-width: 880px;
+  }
+  .notes h2 { font-size: 14px; color: var(--cyan); }
+  .notes p { margin: 0; max-width: 66ch; color: var(--mist); }
+  .table-wrap { overflow-x: auto; }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    min-width: 520px;
+    font-size: 16px;
+  }
+  th, td {
+    text-align: left;
+    padding: 9px 14px 9px 0;
+    border-bottom: 2px solid var(--line);
+    vertical-align: top;
+  }
+  th {
+    font-family: var(--display);
+    font-weight: 400;
+    font-size: 9px;
+    letter-spacing: .06em;
+    color: var(--mist);
+  }
+  td:first-child { color: var(--mist); }
+  td:nth-child(2) { color: var(--orange); font-family: var(--data); font-size: 21px; line-height: 1.1; }
+  td:nth-child(3) { color: var(--cyan); font-family: var(--data); font-size: 21px; line-height: 1.1; }
+
+  .nw { white-space: nowrap; }
+
+  /* narrow screens: keep the explanation right under the animation */
+  @media (max-width: 1039px) {
+    .layout { gap: 14px; }
+    .machine, .guide { display: contents; }
+    .screen { order: 1; }
+    .transcript { order: 2; }
+    .explain { order: 3; }
+    .controls { order: 4; }
+    .legend { order: 5; }
+    .guide > h2 { order: 6; margin-top: 12px; }
+    .stages { order: 7; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .caret { animation: none; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <p class="eyebrow">HOW A LANGUAGE MODEL WRITES</p>
+    <h1>The <span class="nw">Next-Token</span> Machine</h1>
+    <p class="lede">A tiny pretend language model, drawn in pixels. Text gets chopped into tokens, pushed up through attention and MLP layers, turned into odds for the next token, and one gets picked. Then that token is fed back in and the whole machine runs again.</p>
+  </header>
+
+  <main class="layout">
+    <section class="machine" aria-label="Animated model">
+      <div class="screen">
+        <canvas id="scene" width="1344" height="768" role="img" aria-label="Pixel-art diagram of a language model: tokens at the bottom, two transformer layers with attention and MLP bands above them, a probability panel on the right, and a conveyor belt that carries each chosen token back to the input."></canvas>
+      </div>
+
+      <div class="transcript" aria-live="polite">
+        <span class="lbl">TEXT SO FAR</span>
+        <span id="text-out"></span><span class="caret" aria-hidden="true"></span>
+      </div>
+
+      <ul class="legend" aria-label="Legend">
+        <li><span class="chip" style="background: var(--orange)"></span>Your prompt</li>
+        <li><span class="chip" style="background: var(--cyan)"></span>Generated by the model</li>
+        <li><span class="chip" style="background: var(--red)"></span>End-of-text token</li>
+        <li><span class="ramp" aria-hidden="true"><i style="background:#3b5dc9"></i><i style="background:#41a6f6"></i><i style="background:#73eff7"></i><i style="background:#ffcd75"></i><i style="background:#ef7d57"></i><i style="background:#b13e53"></i></span>Vector cells, negative to positive</li>
+      </ul>
+
+      <div class="controls">
+        <div class="group">
+          <span class="ctl-label">RUN</span>
+          <div class="row">
+            <button class="btn" id="play" type="button">PAUSE</button>
+            <button class="btn alt" id="step" type="button" title="Jump to the next stage (→)">STEP</button>
+            <button class="btn alt" id="restart" type="button">RESTART</button>
+          </div>
+        </div>
+        <div class="group">
+          <span class="ctl-label">SPEED</span>
+          <div class="row" role="group" aria-label="Speed">
+            <button class="btn alt" type="button" data-speed="0.5" aria-pressed="false">½×</button>
+            <button class="btn alt" type="button" data-speed="1" aria-pressed="true">1×</button>
+            <button class="btn alt" type="button" data-speed="2" aria-pressed="false">2×</button>
+            <button class="btn alt" type="button" data-speed="4" aria-pressed="false">4×</button>
+          </div>
+        </div>
+        <div class="group">
+          <label class="ctl-label" for="temp">TEMPERATURE</label>
+          <div class="row">
+            <input type="range" id="temp" min="0.1" max="2" step="0.1" value="0.8">
+            <output id="temp-out" for="temp">0.8</output>
+          </div>
+        </div>
+        <div class="group">
+          <label class="ctl-label" for="prompt">PROMPT</label>
+          <div class="row">
+            <select id="prompt"></select>
+          </div>
+        </div>
+        <p class="hint">Space = play/pause · → = step</p>
+      </div>
+    </section>
+
+    <aside class="guide" aria-label="What is happening">
+      <h2>ONE FORWARD PASS</h2>
+      <ol class="stages" id="stages"></ol>
+      <div class="explain" id="explain">
+        <h2 id="ex-title"></h2>
+        <p id="ex-body"></p>
+        <div class="live" id="ex-live" aria-live="polite"></div>
+      </div>
+    </aside>
+  </main>
+
+  <section class="notes">
+    <h2>TOY VS. THE REAL THING</h2>
+    <p>Every step on the screen is a real step an LLM takes, in the right order. The sizes are shrunk to fit on a screen, and the next-token odds here come from a small hand-written table rather than from learned weights. The vectors and attention patterns are computed with random matrices, so they move like the real thing but don't mean anything.</p>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th scope="col">PART</th><th scope="col">THIS MACHINE</th><th scope="col">A LARGE MODEL</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Vocabulary</td><td>~120 tokens</td><td>~100,000–250,000 tokens</td></tr>
+          <tr><td>Numbers per token vector</td><td>6</td><td>~4,000–16,000+</td></tr>
+          <tr><td>Layers (attention + MLP)</td><td>2 drawn, "30 more" implied</td><td>~30–120+</td></tr>
+          <tr><td>Attention heads per layer</td><td>1</td><td>dozens</td></tr>
+          <tr><td>MLP width</td><td>2× the vector (12 neurons)</td><td>~3–4× the vector</td></tr>
+          <tr><td>Context window</td><td>12 tokens</td><td>~100,000–1,000,000+ tokens</td></tr>
+          <tr><td>Where the odds come from</td><td>a lookup table</td><td>billions of learned weights</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
+
+<script src="font.js"></script>
+<script src="model.js"></script>
+<script src="machine.js"></script>
+</body>
+</html>

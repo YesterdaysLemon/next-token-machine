@@ -1,0 +1,17 @@
+# Managed by al-stack. Keep extended prose in AGENTS.md.
+"schema" = 1
+
+["project"]
+"id" = "c79bfdd4-7696-46a0-8cb6-9ac1dc37c10a"
+"name" = "Next-Token Machine"
+"status" = "experimental"
+"profile" = "web"
+"purpose" = "Animated pixel-art walkthrough of how an LLM writes: tokenize, embed, attention, MLP, softmax, sample, and the autoregressive loop. Served at tokenloop.alirezaafshan.com via Deploy Manager."
+
+["stack"]
+"version" = "0.1.0"
+"revision" = "11eac15f6a8a0dc76f06ef97c7c3a27c7f668e0a+dirty.6fb7933644af4e9c"
+
+["commands"]
+"dev" = "npm start"
+"test" = "npm test"

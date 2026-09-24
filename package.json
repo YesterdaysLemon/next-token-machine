@@ -1,0 +1,15 @@
+{
+  "name": "next-token-machine",
+  "version": "1.0.0",
+  "private": true,
+  "description": "An animated pixel-art walkthrough of how a large language model writes, one token at a time.",
+  "type": "module",
+  "license": "MIT",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "start": "node server.mjs",
+    "check": "node scripts/check.mjs",
+    "smoke": "node scripts/smoke.mjs",
+    "test": "node scripts/check.mjs && node scripts/smoke.mjs"
+  }
+}
